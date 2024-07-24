@@ -54,3 +54,6 @@ dkms.conf
 # Clangd files
 compile_commands.json
 /.cache/clangd/
+
+# XML files used for testing
+*.xml
