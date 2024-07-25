@@ -1,3 +1,4 @@
+#include <curl/curl.h>
 #include <libxml2/libxml/parser.h>
 #include <libxml2/libxml/xmlmemory.h>
 #include <stdbool.h>
@@ -6,6 +7,8 @@
 #include <string.h>
 
 #define MAX_FEED_ITEMS 25
+
+#define DOWNLOAD_OK 0
 
 typedef struct {
     xmlChar *title;
@@ -124,17 +127,57 @@ Feed *parse_rss(xmlNodePtr rss) {
     return feed;
 }
 
+int download_rss(char *url, char *filename) {
+    FILE *rss_file = fopen(filename, "w");
+    if (rss_file == NULL) {
+        fprintf(stderr, "Error: failed to open \"%s\"\n", filename);
+        return -1;
+    }
+
+    CURL *curl = curl_easy_init();
+    if (curl == NULL) {
+        fprintf(stderr, "Error: failed to initialize libcurl\n");
+        return -1;
+    }
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
+    curl_easy_setopt(curl, CURLOPT_DEFAULT_PROTOCOL, "https");
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, rss_file);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        fprintf(
+            stderr,
+            "Error: failed to download RSS: %s\n",
+            curl_easy_strerror(res)
+        );
+    }
+
+    curl_easy_cleanup(curl);
+
+    fclose(rss_file);
+
+    return res;
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
-        printf("Missing filename\n");
+        printf("Usage: %s <url>\n", argv[0]);
         return 0;
     }
-    char *filename = argv[1];
+
+    char *url = argv[1];
+    char *filename = "rss.xml";
+    if (download_rss(url, filename) != DOWNLOAD_OK) {
+        return 1;
+    }
 
     xmlDocPtr doc = xmlParseFile(filename);
     if (doc == NULL) {
         fprintf(stderr, "Error: unable to parse file\n");
-        return 0;
+        return 1;
     }
 
     xmlNodePtr rss = xmlDocGetRootElement(doc);
