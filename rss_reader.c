@@ -1,3 +1,4 @@
+#define _GNU_SOURCE  // strptime
 #include <curl/curl.h>
 #include <libxml2/libxml/parser.h>
 #include <libxml2/libxml/xmlmemory.h>
@@ -5,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define MAX_FEED_ITEMS 25
 
@@ -13,6 +15,7 @@
 typedef struct {
     xmlChar *title;
     xmlChar *link;
+    time_t pub_date;
 } Item;
 
 typedef struct {
@@ -43,16 +46,23 @@ void print_feed(Feed *feed) {
     for (size_t i = 0; i < strlen((char *)feed->title); i++) {
         printf("=");
     }
-    printf("\n%s\n\n", feed->description);
+    printf("\n%s\n", feed->description);
 
     for (size_t i = 0; i < feed->items_count; i++) {
-        printf("- %s\n", feed->items[i]->title);
-        printf("  <%s>\n", feed->items[i]->link);
+        printf("\n%s\n", feed->items[i]->title);
+        printf("<%s>\n", feed->items[i]->link);
+        printf("%s", ctime(&feed->items[i]->pub_date));
     }
 }
 
 bool node_name_is(xmlNodePtr node, char *name) {
     return xmlStrcmp(node->name, (const xmlChar *)name) == 0;
+}
+
+time_t convert_rfc822_date(xmlChar *date_str) {
+    struct tm tm = {};
+    strptime((char *)date_str, "%a, %d %b %Y %T", &tm);
+    return timegm(&tm);
 }
 
 Item *parse_item(xmlNodePtr item_node) {
@@ -70,6 +80,11 @@ Item *parse_item(xmlNodePtr item_node) {
         }
         if (node_name_is(node, "link")) {
             item->link = xmlNodeGetContent(node->children);
+        }
+        if (node_name_is(node, "pubDate")) {
+            xmlChar *date_str = xmlNodeGetContent(node->children);
+            item->pub_date = convert_rfc822_date(date_str);
+            free(date_str);
         }
     }
 
