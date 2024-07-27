@@ -1,4 +1,4 @@
-#define _GNU_SOURCE  // strptime
+#define _GNU_SOURCE  // asprintf, strptime
 #include <curl/curl.h>
 #include <libxml2/libxml/parser.h>
 #include <libxml2/libxml/xmlmemory.h>
@@ -41,6 +41,32 @@ void free_feed(Feed *feed) {
     free(feed);
 }
 
+char *natural_time(time_t pub_date) {
+    time_t now = time(NULL);
+    double delta_secs = difftime(now, pub_date);
+    int delta_mins = delta_secs / 60;
+    int delta_hours = delta_mins / 60;
+    int delta_days = delta_hours / 24;
+
+    char *time_str = NULL;
+
+    if (delta_days != 0) {
+        asprintf(
+            &time_str, "%d day%s ago", delta_days, delta_days > 1 ? "s" : ""
+        );
+    } else if (delta_hours != 0) {
+        asprintf(
+            &time_str, "%d hour%s ago", delta_hours, delta_hours > 1 ? "s" : ""
+        );
+    } else {
+        asprintf(
+            &time_str, "%d minute%s ago", delta_mins, delta_mins != 1 ? "s" : ""
+        );
+    }
+
+    return time_str;
+}
+
 void print_feed(Feed *feed) {
     printf("%s\n", feed->title);
     for (size_t i = 0; i < strlen((char *)feed->title); i++) {
@@ -51,7 +77,9 @@ void print_feed(Feed *feed) {
     for (size_t i = 0; i < feed->items_count; i++) {
         printf("\n%s\n", feed->items[i]->title);
         printf("<%s>\n", feed->items[i]->link);
-        printf("%s", ctime(&feed->items[i]->pub_date));
+        char *time_str = natural_time(feed->items[i]->pub_date);
+        printf("%s - %s", time_str, ctime(&feed->items[i]->pub_date));
+        free(time_str);
     }
 }
 
